@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { X, Sparkles, Image as ImageIcon, ArrowRight } from "lucide-react";
+import { X, Sparkles, Image as ImageIcon, ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { api, type PostT } from "@/lib/api";
+import { toast } from "sonner";
 
 interface NewWishModalProps {
   onClose: () => void;
@@ -19,6 +20,8 @@ const CATEGORIES = [
   { name: "Celebration & Birthday", tag: "CELEBRATION", icon: "🎂", img: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=1000&q=80" },
   { name: "Travel & Transit", tag: "TRAVEL MISHAP", icon: "🧳", img: "https://images.unsplash.com/photo-1581553680321-4fffae59fccd?auto=format&fit=crop&w=1000&q=80" },
 ];
+
+const PRESET_GOALS = [350, 750, 1500, 3200];
 
 export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
   const [selectedCat, setSelectedCat] = useState(CATEGORIES[0]);
@@ -60,6 +63,10 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
         img: activeImg,
       });
 
+      toast.success("✨ Your wish is live on the community feed!", {
+        description: "Friends and sponsors can now swipe and help pay directly.",
+      });
+
       onSuccess(created);
       onClose();
     } catch (err: any) {
@@ -70,29 +77,41 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-card p-6 shadow-2xl [scrollbar-width:none]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-border bg-card p-6 shadow-2xl [scrollbar-width:none]">
+        {/* Mobile Drag Indicator */}
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted-foreground/30 sm:hidden" />
+
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute right-5 top-5 rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Close"
+          className="absolute right-5 top-5 rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition"
         >
           <X className="h-5 w-5" />
         </button>
 
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <h2 className="font-display text-2xl font-extrabold">Create a New Wish</h2>
+          <div className="story-ring rounded-full p-[2px]">
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-card">
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
+          </div>
+          <div>
+            <h2 className="font-display text-2xl font-black text-foreground">
+              Share a Bill or Wish
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Turn everyday financial stress into a collective victory.
+            </p>
+          </div>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Share an everyday mishap, bill, or wish with friends and sponsors.
-        </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {/* Category selection */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Select Category
+            <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+              Choose Vibe & Category
             </label>
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
               {CATEGORIES.map((c) => {
@@ -102,10 +121,10 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
                     type="button"
                     key={c.name}
                     onClick={() => setSelectedCat(c)}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                    className={`flex shrink-0 items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-black transition active:scale-95 ${
                       isSelected
-                        ? "bg-primary text-primary-foreground shadow"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                        ? "brand-gradient-bg text-white shadow-md shadow-rose-500/20"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
                     }`}
                   >
                     <span>{c.icon}</span>
@@ -118,8 +137,8 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
 
           {/* Title */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Wish Title
+            <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+              Punchy Title
             </label>
             <input
               type="text"
@@ -127,52 +146,68 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
               placeholder="e.g. My puppy chewed my study notes & headphones 🎧"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm outline-none focus:border-primary"
+              className="mt-1.5 w-full rounded-2xl border border-border bg-muted/40 px-4 py-2.5 text-sm outline-none focus:border-primary transition"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              The Story / Details
+            <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+              What Happened? (The Story)
             </label>
             <textarea
               rows={3}
               maxLength={300}
-              placeholder="Tell friends what happened and why you need help with this bill..."
+              placeholder="Be honest and authentic. Friends love helping out funny mishaps and tiny emergencies..."
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className="mt-1.5 w-full resize-none rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm outline-none focus:border-primary"
+              className="mt-1.5 w-full resize-none rounded-2xl border border-border bg-muted/40 px-4 py-2.5 text-sm outline-none focus:border-primary transition"
             />
           </div>
 
-          {/* Amount */}
+          {/* Amount with quick presets */}
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Target Bill Amount (INR ₹)
+            <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+              Total Bill Amount (INR ₹)
             </label>
+            <div className="mt-2 flex gap-2">
+              {PRESET_GOALS.map((amt) => (
+                <button
+                  type="button"
+                  key={amt}
+                  onClick={() => setGoal(amt.toString())}
+                  className={`flex-1 rounded-2xl border py-1.5 text-xs font-black transition active:scale-95 ${
+                    goal === amt.toString()
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  ₹{amt}
+                </button>
+              ))}
+            </div>
             <input
               type="number"
               min="1"
-              placeholder="e.g. 2500"
+              placeholder="Or enter custom bill goal (e.g. ₹2,500)"
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-sm outline-none focus:border-primary"
+              className="mt-2 w-full rounded-2xl border border-border bg-muted/40 px-4 py-2.5 text-sm outline-none focus:border-primary transition"
             />
           </div>
 
           {/* Image preview & custom url */}
           <div>
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Photo Preview
+              <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                Visual Cover
               </label>
               <button
                 type="button"
                 onClick={() => setCustomImg(customImg ? "" : "https://images.unsplash.com/")}
-                className="text-[11px] font-bold text-primary hover:underline"
+                className="text-[11px] font-black text-primary hover:underline"
               >
-                {customImg ? "Use category default" : "Use custom image URL"}
+                {customImg ? "Use category default" : "Paste custom image URL"}
               </button>
             </div>
 
@@ -185,7 +220,7 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
                   (e.target as HTMLImageElement).src = selectedCat.img;
                 }}
               />
-              <span className="absolute left-3 top-3 rounded-full bg-card/90 px-2.5 py-0.5 text-[10px] font-extrabold tracking-wider backdrop-blur">
+              <span className="absolute left-3 top-3 rounded-full bg-card/90 px-2.5 py-0.5 text-[10px] font-black tracking-wider backdrop-blur border border-border/40">
                 {selectedCat.tag}
               </span>
             </div>
@@ -193,10 +228,10 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
             {customImg !== "" && (
               <input
                 type="url"
-                placeholder="Paste image URL (https://...)"
+                placeholder="Paste direct image URL (https://...)"
                 value={customImg}
                 onChange={(e) => setCustomImg(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-border bg-muted/50 px-4 py-2 text-xs outline-none focus:border-primary"
+                className="mt-2 w-full rounded-2xl border border-border bg-muted/40 px-4 py-2 text-xs outline-none focus:border-primary transition"
               />
             )}
           </div>
@@ -206,9 +241,9 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 font-display text-base font-extrabold text-primary-foreground shadow-lg transition hover:opacity-90 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl brand-gradient-bg py-3.5 font-display text-base font-black text-white shadow-xl shadow-rose-500/25 transition hover:brightness-110 active:scale-98 disabled:opacity-50"
           >
-            {isSubmitting ? "Publishing..." : "Publish Wish →"}
+            {isSubmitting ? "Publishing to Feed..." : "Publish Wish 🚀"}
           </button>
         </form>
       </div>
