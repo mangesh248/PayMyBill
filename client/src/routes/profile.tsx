@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { ShieldCheck, Sparkles, Share2, Flame, Award, Heart, Copy, Check } from "lucide-react";
+import { ShieldCheck, Sparkles, Share2, Flame, Award, Heart, Copy, Check, LogOut } from "lucide-react";
 import { Shell, Post, inr, Empty } from "@/components/social";
 import { api, type ProfileT, type PostT } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/profile")({
 });
 
 function Profile() {
+  const { isAuthenticated, logout, openAuthModal } = useAuth();
   const [tab, setTab] = useState<"Wishes" | "Sponsored" | "Saved">("Wishes");
   const [data, setData] = useState<ProfileT | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ function Profile() {
 
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, [isAuthenticated]);
 
   const handleUpdate = (updated: PostT) => {
     if (!data) return;
@@ -56,6 +58,7 @@ function Profile() {
 
   const user = data?.user;
   const stats = data?.stats;
+  const streak = (data as any)?.stats?.streak_days || (data as any)?.user?.streak_days || 1;
 
   return (
     <Shell title="My Impact Profile">
@@ -63,6 +66,26 @@ function Profile() {
       <div className="relative h-32 sm:h-36 w-full brand-gradient-bg overflow-hidden">
         <div className="absolute inset-0 bg-black/10" />
         <div className="absolute right-4 top-4 flex gap-2">
+          {isAuthenticated ? (
+            <button
+              onClick={() => {
+                logout();
+                fetchProfile();
+              }}
+              className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-black text-white/90 backdrop-blur-md hover:bg-black/60 transition active:scale-95"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span>Log out</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => openAuthModal("login")}
+              className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-black text-black shadow-md hover:bg-zinc-100 transition active:scale-95"
+            >
+              <span>Sign In</span>
+            </button>
+          )}
+
           <button
             onClick={handleShareProfile}
             className="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-black text-white backdrop-blur-md hover:bg-black/60 transition active:scale-95"
@@ -82,7 +105,7 @@ function Profile() {
 
           <div className="flex items-center gap-1.5 rounded-2xl bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-black text-primary">
             <Flame className="h-4 w-4 fill-primary" />
-            <span>5 Day Streak</span>
+            <span>{streak} Day Streak</span>
           </div>
         </div>
 

@@ -1,16 +1,20 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
 import { db } from "../db/database.js";
 import { v4 as uuidv4 } from "uuid";
+import { type AuthRequest, getAuthenticatedUserId } from "../middleware/auth.js";
+import { sendMessageSchema, validateBody } from "../validators/schemas.js";
+import { formatRelativeTime } from "../utils/time.js";
 
 export const messagesRouter = Router();
 
-const CURRENT_USER_ID = "user_you";
-
 // GET /api/messages (List of chats/conversations)
-messagesRouter.get("/", (req: Request, res: Response) => {
+messagesRouter.get("/", (req: AuthRequest, res: Response) => {
   try {
+    const currentUserId = getAuthenticatedUserId(req);
+
     // Get all users with whom current user has exchanged messages
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(`
       SELECT 
         m.id,
         m.text,
@@ -22,7 +26,8 @@ messagesRouter.get("/", (req: Request, res: Response) => {
       FROM messages m
       WHERE m.sender_id = ? OR m.recipient_id = ?
       ORDER BY m.created_at DESC
-    `).all(CURRENT_USER_ID, CURRENT_USER_ID, CURRENT_USER_ID) as any[];
+    `)
+      .all(currentUserId, currentUserId, currentUserId) as any[];
 
     // Group by partner_id keeping latest message
     const seenPartners = new Set<string>();
@@ -32,7 +37,9 @@ messagesRouter.get("/", (req: Request, res: Response) => {
       if (!seenPartners.has(row.partner_id)) {
         seenPartners.add(row.partner_id);
 
-        const partner = db.prepare(`SELECT id, name, handle, avatar FROM users WHERE id = ?`).get(row.partner_id) as any;
+        const partner = db
+          .prepare(`SELECT id, name, handle, avatar FROM users WHERE id = ?`)
+          .get(row.partner_id) as any;
         if (partner) {
           conversations.push({
             id: partner.id,
@@ -55,18 +62,22 @@ messagesRouter.get("/", (req: Request, res: Response) => {
 });
 
 // GET /api/messages/thread/:partnerId
-messagesRouter.get("/thread/:partnerId", (req: Request, res: Response) => {
+messagesRouter.get("/thread/:partnerId", (req: AuthRequest, res: Response) => {
   try {
+    const currentUserId = getAuthenticatedUserId(req);
     const { partnerId } = req.params;
 
     // Check if partnerId is a user id or user name/handle
-    let partner = db.prepare(`SELECT * FROM users WHERE id = ? OR name = ? OR handle = ?`).get(partnerId, partnerId, partnerId) as any;
+    const partner = db
+      .prepare(`SELECT * FROM users WHERE id = ? OR name = ? OR handle = ?`)
+      .get(partnerId, partnerId, partnerId) as any;
     if (!partner) {
       res.status(404).json({ error: "User not found" });
       return;
     }
 
-    const messages = db.prepare(`
+    const messages = db
+      .prepare(`
       SELECT m.*, 
              u.name as sender_name, 
              u.handle as sender_handle,
@@ -76,7 +87,8 @@ messagesRouter.get("/thread/:partnerId", (req: Request, res: Response) => {
       WHERE (m.sender_id = ? AND m.recipient_id = ?)
          OR (m.sender_id = ? AND m.recipient_id = ?)
       ORDER BY m.created_at ASC
-    `).all(CURRENT_USER_ID, partner.id, partner.id, CURRENT_USER_ID) as any[];
+    `)
+      .all(currentUserId, partner.id, partner.id, currentUserId) as any[];
 
     res.json({
       partner: {
@@ -88,7 +100,7 @@ messagesRouter.get("/thread/:partnerId", (req: Request, res: Response) => {
       messages: messages.map((m) => ({
         id: m.id,
         sender_id: m.sender_id,
-        is_me: m.sender_id === CURRENT_USER_ID,
+        is_me: m.sender_id === currentUserId,
         text: m.text,
         time: formatRelativeTime(m.created_at),
         created_at: m.created_at,
@@ -101,18 +113,18 @@ messagesRouter.get("/thread/:partnerId", (req: Request, res: Response) => {
 });
 
 // POST /api/messages
-messagesRouter.post("/", (req: Request, res: Response) => {
+messagesRouter.post("/", (req: AuthRequest, res: Response) => {
   try {
-    const { recipient_id, recipient_name, text } = req.body;
+    const data = validateBody(sendMessageSchema, req.body, res);
+    if (!data) return;
 
-    if (!text || !text.trim()) {
-      res.status(400).json({ error: "Message text is required" });
-      return;
-    }
+    const currentUserId = getAuthenticatedUserId(req);
 
-    let targetId = recipient_id;
-    if (!targetId && recipient_name) {
-      const u = db.prepare("SELECT id FROM users WHERE name = ? OR handle = ?").get(recipient_name, recipient_name) as any;
+    let targetId = data.recipient_id;
+    if (!targetId && data.recipient_name) {
+      const u = db
+        .prepare("SELECT id FROM users WHERE name = ? OR handle = ?")
+        .get(data.recipient_name, data.recipient_name) as any;
       targetId = u?.id;
     }
 
@@ -125,13 +137,13 @@ messagesRouter.post("/", (req: Request, res: Response) => {
     db.prepare(`
       INSERT INTO messages (id, sender_id, recipient_id, text)
       VALUES (?, ?, ?, ?)
-    `).run(messageId, CURRENT_USER_ID, targetId, text.trim());
+    `).run(messageId, currentUserId, targetId, data.text);
 
     res.status(201).json({
       id: messageId,
-      sender_id: CURRENT_USER_ID,
+      sender_id: currentUserId,
       recipient_id: targetId,
-      text: text.trim(),
+      text: data.text,
       is_me: true,
       time: "Just now",
       created_at: new Date().toISOString(),
@@ -141,22 +153,3 @@ messagesRouter.post("/", (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to send message", details: error.message });
   }
 });
-
-function formatRelativeTime(dateString: string): string {
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffSec < 60) return "Just now";
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m`;
-    const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `${diffHours}h`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d`;
-    return `${Math.floor(diffDays / 7)}w`;
-  } catch {
-    return "recently";
-  }
-}

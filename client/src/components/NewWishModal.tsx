@@ -22,17 +22,20 @@ const CATEGORIES = [
 ];
 
 const PRESET_GOALS = [350, 750, 1500, 3200];
+const defaultCategory = CATEGORIES[0]!;
 
 export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
-  const [selectedCat, setSelectedCat] = useState(CATEGORIES[0]);
+  const [selectedCat, setSelectedCat] = useState(defaultCategory);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [goal, setGoal] = useState("");
+  const [providerName, setProviderName] = useState("");
+  const [billReference, setBillReference] = useState("");
   const [customImg, setCustomImg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeImg = customImg || selectedCat.img;
+  const activeImg = customImg || (selectedCat?.img ?? defaultCategory.img);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +64,8 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
         tag: selectedCat.tag,
         goal: numGoal,
         img: activeImg,
+        provider_name: providerName.trim() || undefined,
+        bill_reference: billReference.trim() || undefined,
       });
 
       toast.success("✨ Your wish is live on the community feed!", {
@@ -196,6 +201,33 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
             />
           </div>
 
+          {/* Bill Verification Details */}
+          <div className="rounded-2xl border border-border/80 bg-muted/30 p-3.5 space-y-2.5">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <span className="text-xs font-black text-foreground">Direct Provider Verification (Optional)</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Attaching an official merchant or provider name earns an instant <b className="text-emerald-400 font-bold">⚡ Verified</b> badge on your wish!
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                placeholder="Provider (e.g. Tata Power, Apollo)"
+                value={providerName}
+                onChange={(e) => setProviderName(e.target.value)}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium outline-none focus:border-primary transition"
+              />
+              <input
+                type="text"
+                placeholder="Bill # or Account ID"
+                value={billReference}
+                onChange={(e) => setBillReference(e.target.value)}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium outline-none focus:border-primary transition"
+              />
+            </div>
+          </div>
+
           {/* Image preview & custom url */}
           <div>
             <div className="flex items-center justify-between">
@@ -217,11 +249,11 @@ export function NewWishModal({ onClose, onSuccess }: NewWishModalProps) {
                 alt="Wish preview"
                 className="aspect-[16/9] w-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = selectedCat.img;
+                  (e.target as HTMLImageElement).src = selectedCat?.img ?? defaultCategory.img;
                 }}
               />
               <span className="absolute left-3 top-3 rounded-full bg-card/90 px-2.5 py-0.5 text-[10px] font-black tracking-wider backdrop-blur border border-border/40">
-                {selectedCat.tag}
+                {selectedCat?.tag ?? defaultCategory.tag}
               </span>
             </div>
 

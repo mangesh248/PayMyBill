@@ -1,5 +1,6 @@
 import { db } from "./database.js";
 import { initSchema } from "./schema.js";
+import bcrypt from "bcryptjs";
 
 export function seed() {
   initSchema();
@@ -19,10 +20,13 @@ export function seed() {
 
   console.log("Seeding database with rich data...");
 
+  // Default hashed password for demo users: "password123"
+  const defaultPasswordHash = bcrypt.hashSync("password123", 10);
+
   // 1. Insert Users
   const insertUser = db.prepare(`
-    INSERT INTO users (id, name, handle, avatar, bio, total_paid, bills_sponsored, followers_count)
-    VALUES (@id, @name, @handle, @avatar, @bio, @total_paid, @bills_sponsored, @followers_count)
+    INSERT INTO users (id, name, handle, avatar, bio, total_paid, bills_sponsored, followers_count, password_hash)
+    VALUES (@id, @name, @handle, @avatar, @bio, @total_paid, @bills_sponsored, @followers_count, @password_hash)
   `);
 
   const users = [
@@ -48,7 +52,7 @@ export function seed() {
   ];
 
   for (const u of users) {
-    insertUser.run(u);
+    insertUser.run({ ...u, password_hash: defaultPasswordHash });
   }
 
   // 2. Insert Wishes (Posts across multiple categories)
@@ -443,7 +447,14 @@ export function seed() {
   const insertSave = db.prepare(`INSERT INTO saves (id, user_id, wish_id) VALUES (?, ?, ?)`);
   insertSave.run("s_1", "user_you", "wish_3");
 
-  console.log("Database seeded successfully with all categories and live test data!");
+  // 9. Seed Social Follows
+  const insertFollow = db.prepare(`INSERT OR IGNORE INTO follows (follower_id, following_id) VALUES (?, ?)`);
+  insertFollow.run("user_you", "user_tanya");
+  insertFollow.run("user_you", "user_rohan");
+  insertFollow.run("user_you", "user_aarav");
+  insertFollow.run("user_tanya", "user_you");
+
+  console.log("Database seeded successfully with all categories, follows and live test data!");
 }
 
 // Auto-run if executed directly

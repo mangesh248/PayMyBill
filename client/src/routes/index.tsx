@@ -44,29 +44,46 @@ function Index() {
   const [wishes, setWishes] = useState<PostT[]>([]);
   const [stories, setStories] = useState<{ id: string; title: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [isNewWishOpen, setIsNewWishOpen] = useState(false);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [storyPaymentPost, setStoryPaymentPost] = useState<any | null>(null);
 
-  const loadData = () => {
-    setLoading(true);
+  const PAGE_LIMIT = 8;
+
+  const loadData = (pageNum = 1, append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     const apiTab = tab === "Urgent ⚡" ? "For you" : tab;
-    api.getWishes({ tab: apiTab })
+    const sortParam = tab === "Urgent ⚡" ? "urgent" : undefined;
+
+    api.getWishes({ tab: apiTab, sort: sortParam, page: pageNum, limit: PAGE_LIMIT })
       .then((data) => {
-        if (tab === "Urgent ⚡") {
-          // Sort by highest remaining urgent funding needed
-          const sorted = [...data].sort((a, b) => (b.goal - b.raised) - (a.goal - a.raised));
-          setWishes(sorted);
+        if (append) {
+          setWishes((prev) => [...prev, ...data]);
         } else {
           setWishes(data);
         }
+        setHasMore(data.length === PAGE_LIMIT);
+        setPage(pageNum);
       })
       .catch((err) => console.error("Error fetching feed:", err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setLoadingMore(false);
+      });
   };
 
   useEffect(() => {
-    loadData();
+    setPage(1);
+    setHasMore(true);
+    loadData(1, false);
   }, [tab]);
 
   useEffect(() => {
@@ -74,6 +91,12 @@ function Index() {
       .then((data) => setStories(data))
       .catch((err) => console.error("Error fetching stories:", err));
   }, []);
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      loadData(page + 1, true);
+    }
+  };
 
   const handleUpdate = (updated: PostT) => {
     setWishes((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
@@ -155,7 +178,29 @@ function Index() {
         wishes.map((p) => <Post key={p.id} p={p} onUpdate={handleUpdate} />)
       )}
 
-      <Empty>✨ You're caught up on community wishes!</Empty>
+      {/* Load More Button or Caught Up State */}
+      {!loading && wishes.length > 0 && (
+        <div className="p-6 text-center">
+          {hasMore ? (
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-muted/80 hover:bg-muted px-6 py-2.5 text-xs font-black text-foreground transition active:scale-95 disabled:opacity-50 border border-border"
+            >
+              {loadingMore ? (
+                <>
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span>Loading wishes...</span>
+                </>
+              ) : (
+                <span>Load More Wishes ↓</span>
+              )}
+            </button>
+          ) : (
+            <Empty>✨ You're caught up on community wishes!</Empty>
+          )}
+        </div>
+      )}
 
       {/* New Wish Modal */}
       {isNewWishOpen && (

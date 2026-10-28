@@ -32,7 +32,7 @@ export function StoryModal({
 
   const current = stories[currentIndex] || stories[0];
   const storyImage =
-    STORY_IMAGES[current.title] ||
+    (current ? STORY_IMAGES[current.title] : undefined) ||
     "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=1000&q=80";
 
   useEffect(() => {
@@ -72,6 +72,8 @@ export function StoryModal({
   const sendReaction = (_emoji: string) => {
     // Silent in-place reaction without noisy toast
   };
+
+  if (!current) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-200">

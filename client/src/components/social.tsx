@@ -22,27 +22,26 @@ import {
   Moon,
   Flame,
   TrendingUp,
+  UserPlus,
+  CheckCircle2,
+  Flag,
+  X,
 } from "lucide-react";
 import { api, inr, type PostT, type SponsorT } from "@/lib/api";
 import { PaymentModal } from "./PaymentModal";
 import { NewWishModal } from "./NewWishModal";
 import { CommentsModal } from "./CommentsModal";
+import { LegalModal } from "./LegalModal";
 import { useTheme } from "@/hooks/use-theme";
+import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
 
 export { inr };
 export type { PostT };
 
-export const stories = [
-  "Puppy vs...",
-  "Date Bill 🍝",
-  "Charger RIP",
-  "Mom's Cake",
-  "Live Gig 🎸",
-  "Rent 🏠",
-  "Goa Trip",
-  "Dentist 🦷",
-];
+export function rankSponsors<T extends { total: number }>(sponsors: T[]): T[] {
+  return [...sponsors].sort((a, b) => b.total - a.total);
+}
 
 export function Avatar({ name, size = "h-10 w-10 text-sm" }: { name: string; size?: string }) {
   const initial = name ? name.trim()[0]?.toUpperCase() : "U";
@@ -62,6 +61,7 @@ export function Post({
   p: PostT;
   onUpdate?: (updated: PostT) => void;
 }) {
+  const { user, isAuthenticated, openAuthModal } = useAuth();
   const [liked, setLiked] = useState(p.liked ?? false);
   const [likesCount, setLikesCount] = useState(p.likes ?? 0);
   const [saved, setSaved] = useState(p.saved ?? false);
@@ -71,6 +71,12 @@ export function Post({
   const [isCommenting, setIsCommenting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [userReactions, setUserReactions] = useState<Record<string, number>>({});
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
+  const [reportReason, setReportReason] = useState<string>("fraud");
+  const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   useEffect(() => {
     setLiked(p.liked ?? false);
@@ -78,6 +84,28 @@ export function Post({
     setSaved(p.saved ?? false);
     setCommentsCount(p.comments ?? 0);
   }, [p.liked, p.likes, p.saved, p.comments]);
+
+  useEffect(() => {
+    if (isAuthenticated && p.user_id && p.user_id !== user?.id) {
+      api.getFollowStatus(p.user_id)
+        .then((res) => setIsFollowing(res.isFollowing))
+        .catch(() => {});
+    }
+  }, [p.user_id, isAuthenticated, user?.id]);
+
+  const handleToggleFollow = async () => {
+    if (!isAuthenticated) {
+      openAuthModal("login");
+      return;
+    }
+    try {
+      const res = await api.toggleFollow(p.user_id);
+      setIsFollowing(res.following);
+      toast.success(res.message);
+    } catch {
+      toast.error("Failed to update follow status");
+    }
+  };
 
   const pct = Math.min(100, Math.round((p.raised / p.goal) * 100));
 
@@ -117,6 +145,37 @@ export function Post({
     }
   };
 
+  const shareToWhatsApp = () => {
+    const text = `Help fund "${p.title}" on HelpMePay! Directly sponsor verified bills: ${window.location.origin}/search?q=${encodeURIComponent(p.title)}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    setIsMenuOpen(false);
+  };
+
+  const shareToTwitter = () => {
+    const text = `Check out "${p.title}" on @HelpMePay! Crowdfund small bills directly: ${window.location.origin}/search?q=${encodeURIComponent(p.title)}`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+    setIsMenuOpen(false);
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      openAuthModal("login");
+      return;
+    }
+    setIsSubmittingReport(true);
+    try {
+      const res = await api.reportWish(p.id, { reason: reportReason, details: reportDetails });
+      toast.success(res.message);
+      setIsReporting(false);
+      setReportDetails("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit report");
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   const handleQuickReaction = (emoji: string) => {
     setUserReactions((prev) => ({
       ...prev,
@@ -146,21 +205,78 @@ export function Post({
         <div className="flex items-center gap-3">
           <Avatar name={p.name} />
           <div className="min-w-0 flex-1 truncate text-sm">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-black text-foreground">{p.name}</span>
               <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+              {user?.handle !== p.handle && (
+                <button
+                  type="button"
+                  onClick={handleToggleFollow}
+                  className={`ml-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black transition active:scale-95 ${
+                    isFollowing
+                      ? "bg-muted text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
+                  }`}
+                >
+                  {isFollowing ? "Following" : "+ Follow"}
+                </button>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               @{p.handle} · {p.time}
             </p>
           </div>
-          <button
-            aria-label="More Options"
-            onClick={handleShare}
-            className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition"
-          >
-            <MoreHorizontal className="h-5 w-5" />
-          </button>
+          <div className="relative">
+            <button
+              aria-label="More Options"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </button>
+
+            {isMenuOpen && (
+              <div className="absolute right-0 top-10 z-30 w-52 rounded-2xl border border-border bg-card p-1.5 shadow-xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  type="button"
+                  onClick={shareToWhatsApp}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:bg-muted transition text-left"
+                >
+                  <span>💬 Share on WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={shareToTwitter}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:bg-muted transition text-left"
+                >
+                  <span>🐦 Share on X (Twitter)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleShare();
+                    setIsMenuOpen(false);
+                    toast.success("Wish link copied to clipboard!");
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:bg-muted transition text-left"
+                >
+                  <span>📋 Copy Link</span>
+                </button>
+                <div className="my-1 border-t border-border" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsReporting(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-500/10 transition text-left"
+                >
+                  <Flag className="h-3.5 w-3.5" />
+                  <span>Report Wish</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Post Image Container */}
@@ -186,6 +302,11 @@ export function Post({
           {p.status === "funded" ? (
             <span className="absolute right-3 top-3 rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-black tracking-widest text-white shadow-md">
               ✨ 100% FUNDED
+            </span>
+          ) : p.provider_name ? (
+            <span className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-emerald-950/85 px-3 py-1 text-[10px] font-black tracking-wide text-emerald-300 backdrop-blur-md border border-emerald-500/40 shadow-xs">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+              <span>⚡ {p.provider_name}</span>
             </span>
           ) : (
             <span className="absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-black tracking-wide text-white backdrop-blur-md border border-white/20">
@@ -307,7 +428,8 @@ export function Post({
       {/* Payment Modal */}
       {isPaying && (
         <PaymentModal
-          post={prefilledAmount ? { ...p, goal: p.goal } : p}
+          post={p}
+          initialAmount={prefilledAmount}
           onClose={() => {
             setIsPaying(false);
             setPrefilledAmount(undefined);
@@ -323,6 +445,72 @@ export function Post({
           onClose={() => setIsCommenting(false)}
           onCommentAdded={() => setCommentsCount((c) => c + 1)}
         />
+      )}
+
+      {/* Report Modal */}
+      {isReporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2 text-rose-500">
+                <Flag className="h-5 w-5" />
+                <h3 className="font-display font-black text-foreground text-base">Report Wish</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReporting(false)}
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitReport} className="mt-4 space-y-3.5">
+              <div>
+                <label className="text-xs font-bold text-muted-foreground">Reason for report</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="fraud">Fraud / Fake Bill Request</option>
+                  <option value="duplicate">Duplicate Wish</option>
+                  <option value="inappropriate">Inappropriate Content</option>
+                  <option value="impersonation">Impersonation</option>
+                  <option value="other">Other Concern</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-muted-foreground">Details (optional)</label>
+                <textarea
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  placeholder="Provide additional context for our moderation team..."
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsReporting(false)}
+                  className="flex-1 rounded-xl bg-muted py-2 text-xs font-bold text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReport}
+                  className="flex-1 rounded-xl bg-rose-500 hover:bg-rose-600 py-2 text-xs font-black text-white shadow-md transition disabled:opacity-50"
+                >
+                  {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </>
   );
@@ -349,8 +537,11 @@ export function Shell({
 }) {
   const [topSponsors, setTopSponsors] = useState<SponsorT[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [trending, setTrending] = useState<{ category: string; count: number; tag?: string }[]>([]);
   const [isWishModalOpen, setIsWishModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<"terms" | "privacy" | "refund" | null>(null);
   const { theme, toggleTheme } = useTheme();
+  const { user, isAuthenticated, openAuthModal } = useAuth();
 
   useEffect(() => {
     let mounted = true;
@@ -365,6 +556,14 @@ export function Shell({
         if (mounted) setUnreadCount(data.unreadCount || 0);
       })
       .catch((err) => console.error("Notifications fetch error:", err));
+
+    api.getTrendingCategories()
+      .then((data) => {
+        if (mounted && Array.isArray(data?.trendingCategories)) {
+          setTrending(data.trendingCategories);
+        }
+      })
+      .catch((err) => console.error("Trending fetch error:", err));
 
     return () => {
       mounted = false;
@@ -426,13 +625,24 @@ export function Shell({
         {/* Sidebar Footer User & Theme Switcher */}
         <div className="border-t border-border/80 pt-4">
           <div className="flex items-center justify-between px-2">
-            <Link to="/profile" className="flex items-center gap-2.5 min-w-0">
-              <Avatar name="You" size="h-9 w-9 text-xs" />
-              <div className="hidden min-w-0 flex-1 lg:block text-left">
-                <p className="truncate text-xs font-black text-foreground">You</p>
-                <p className="truncate text-[10px] text-muted-foreground">@you · Level 2</p>
-              </div>
-            </Link>
+            {isAuthenticated && user ? (
+              <Link to="/profile" className="flex items-center gap-2.5 min-w-0">
+                <Avatar name={user.name} size="h-9 w-9 text-xs" />
+                <div className="hidden min-w-0 flex-1 lg:block text-left">
+                  <p className="truncate text-xs font-black text-foreground">{user.name}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">@{user.handle}</p>
+                </div>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal("login")}
+                className="flex items-center gap-1.5 rounded-xl brand-gradient-bg px-3 py-1.5 text-xs font-black text-white shadow-xs hover:brightness-110 transition active:scale-95"
+              >
+                <User className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">Sign In</span>
+              </button>
+            )}
 
             <button
               onClick={toggleTheme}
@@ -441,6 +651,33 @@ export function Shell({
               title="Toggle theme"
             >
               {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {/* Legal / Compliance links */}
+          <div className="mt-3 hidden lg:flex items-center justify-between px-2 text-[10px] text-muted-foreground/80 font-medium">
+            <button
+              type="button"
+              onClick={() => setLegalModalTab("terms")}
+              className="hover:underline hover:text-foreground transition"
+            >
+              Terms
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => setLegalModalTab("privacy")}
+              className="hover:underline hover:text-foreground transition"
+            >
+              Privacy
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => setLegalModalTab("refund")}
+              className="hover:underline hover:text-foreground transition"
+            >
+              Guarantee
             </button>
           </div>
         </div>
@@ -458,9 +695,19 @@ export function Shell({
             >
               {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
             </button>
-            <Link to="/profile" aria-label="Profile">
-              <Avatar name="You" size="h-7 w-7 text-xs" />
-            </Link>
+            {isAuthenticated && user ? (
+              <Link to="/profile" aria-label="Profile">
+                <Avatar name={user.name} size="h-7 w-7 text-xs" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal("login")}
+                className="rounded-full brand-gradient-bg px-3 py-1 text-xs font-black text-white"
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </header>
         {children}
@@ -483,12 +730,32 @@ export function Shell({
             <TrendingUp className="h-4 w-4 text-primary" />
             <h3 className="font-display text-sm font-black text-foreground">Trending Emergencies</h3>
           </div>
-          {[
-            ["RomanceTax", "1.2k wishes", "🍝"],
-            ["EmergencyDrip", "860 wishes", "🐶"],
-            ["AcademicCrisis", "540 wishes", "🔌"],
-            ["PetDamage", "410 wishes", "🐱"],
-          ].map(([t, c, icon]) => (
+          {(trending.length > 0
+            ? trending.map((item) => {
+                const icons: Record<string, string> = {
+                  Food: "🍝",
+                  Pets: "🐶",
+                  Tech: "🔌",
+                  Medical: "🩺",
+                  Rent: "🏠",
+                  Education: "📚",
+                  Transport: "🚗",
+                  Utilities: "💡",
+                  Shopping: "🛍️",
+                };
+                return [
+                  item.category,
+                  `${item.count} ${item.count === 1 ? "wish" : "wishes"}`,
+                  icons[item.category] || "🔥",
+                ];
+              })
+            : [
+                ["Food", "Active now", "🍝"],
+                ["Pets", "Active now", "🐶"],
+                ["Tech", "Active now", "🔌"],
+                ["Medical", "Active now", "🩺"],
+              ]
+          ).map(([t, c, icon]) => (
             <Link key={t} to="/search" search={{ q: t }} className="mt-3 block group">
               <div className="flex items-center justify-between">
                 <p className="font-extrabold text-xs text-foreground group-hover:text-primary transition">
@@ -588,6 +855,14 @@ export function Shell({
         <NewWishModal
           onClose={() => setIsWishModalOpen(false)}
           onSuccess={handleCreated}
+        />
+      )}
+
+      {/* Legal & Trust Standards Modal */}
+      {legalModalTab && (
+        <LegalModal
+          initialTab={legalModalTab}
+          onClose={() => setLegalModalTab(null)}
         />
       )}
     </div>

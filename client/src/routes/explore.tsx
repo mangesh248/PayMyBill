@@ -112,19 +112,26 @@ function Explore() {
                 />
 
                 {/* Top Badge */}
-                <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
-                  <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-black text-white backdrop-blur-md">
+                <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1">
+                  <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-black text-white backdrop-blur-md truncate max-w-[100px]">
                     {p.tag}
                   </span>
-                  {p.status === "funded" ? (
-                    <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-white shadow">
-                      PAID ✨
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-primary px-2 py-0.5 text-[9px] font-black text-white shadow">
-                      {pct}%
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {p.provider_name && (
+                      <span className="rounded-full bg-emerald-950/80 px-1.5 py-0.5 text-[9px] font-black text-emerald-400 border border-emerald-500/40 backdrop-blur-xs" title={`Verified: ${p.provider_name}`}>
+                        ⚡
+                      </span>
+                    )}
+                    {p.status === "funded" ? (
+                      <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-white shadow">
+                        PAID ✨
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-primary px-2 py-0.5 text-[9px] font-black text-white shadow">
+                        {pct}%
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Bottom Overlay Gradient */}

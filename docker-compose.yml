@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: helpmepay-production
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - JWT_SECRET=production_ultra_secure_jwt_secret_change_me_in_real_deployment_xyz987
+      - JWT_EXPIRES_IN=7d
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - AUTH_RATE_LIMIT_MAX=20
+      - RAZORPAY_KEY_ID=rzp_test_spotlight_dummy_key
+      - RAZORPAY_KEY_SECRET=spotlight_test_secret_change_in_prod
+    volumes:
+      # Persist SQLite database file on host
+      - ./server/paymybill.db:/app/server/paymybill.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

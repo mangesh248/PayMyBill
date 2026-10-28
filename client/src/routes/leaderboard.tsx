@@ -47,7 +47,7 @@ function Leaderboard() {
 
   const top3 = sponsors.slice(0, 3);
   // Podium ordering: 2nd place (left), 1st place (center), 3rd place (right)
-  const podium = [top3[1], top3[0], top3[2]].filter(Boolean);
+  const podium: SponsorT[] = [top3[1], top3[0], top3[2]].filter((s): s is SponsorT => Boolean(s));
 
   return (
     <Shell title="Supporter Hall of Fame">

@@ -1,23 +1,29 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
 import { db } from "../db/database.js";
+import { type AuthRequest, getAuthenticatedUserId } from "../middleware/auth.js";
+import { formatRelativeTime } from "../utils/time.js";
 
 export const notificationsRouter = Router();
 
-const CURRENT_USER_ID = "user_you";
-
 // GET /api/notifications
-notificationsRouter.get("/", (req: Request, res: Response) => {
+notificationsRouter.get("/", (req: AuthRequest, res: Response) => {
   try {
-    const rawList = db.prepare(`
+    const currentUserId = getAuthenticatedUserId(req);
+
+    const rawList = db
+      .prepare(`
       SELECT * FROM notifications 
       WHERE user_id = ? 
       ORDER BY created_at DESC
-    `).all(CURRENT_USER_ID) as any[];
+    `)
+      .all(currentUserId) as any[];
 
-    const unreadCount = db.prepare(`
+    const unreadCount = db
+      .prepare(`
       SELECT COUNT(*) as count FROM notifications 
       WHERE user_id = ? AND is_read = 0
-    `).get(CURRENT_USER_ID) as any;
+    `)
+      .get(currentUserId) as any;
 
     const formatted = rawList.map((n) => ({
       id: n.id,
@@ -44,9 +50,10 @@ notificationsRouter.get("/", (req: Request, res: Response) => {
 });
 
 // POST /api/notifications/read-all
-notificationsRouter.post("/read-all", (req: Request, res: Response) => {
+notificationsRouter.post("/read-all", (req: AuthRequest, res: Response) => {
   try {
-    db.prepare(`UPDATE notifications SET is_read = 1 WHERE user_id = ?`).run(CURRENT_USER_ID);
+    const currentUserId = getAuthenticatedUserId(req);
+    db.prepare(`UPDATE notifications SET is_read = 1 WHERE user_id = ?`).run(currentUserId);
     res.json({ success: true, message: "All notifications marked as read" });
   } catch (error: any) {
     console.error("Error marking all read:", error);
@@ -55,31 +62,16 @@ notificationsRouter.post("/read-all", (req: Request, res: Response) => {
 });
 
 // POST /api/notifications/:id/read
-notificationsRouter.post("/:id/read", (req: Request, res: Response) => {
+notificationsRouter.post("/:id/read", (req: AuthRequest, res: Response) => {
   try {
-    db.prepare(`UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?`).run(req.params.id, CURRENT_USER_ID);
+    const currentUserId = getAuthenticatedUserId(req);
+    db.prepare(`UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?`).run(
+      req.params.id,
+      currentUserId
+    );
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error marking notification read:", error);
     res.status(500).json({ error: "Failed to mark notification read", details: error.message });
   }
 });
-
-function formatRelativeTime(dateString: string): string {
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffSec < 60) return "Just now";
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m`;
-    const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `${diffHours}h`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d`;
-    return `${Math.floor(diffDays / 7)}w`;
-  } catch {
-    return "recently";
-  }
-}

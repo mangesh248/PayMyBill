@@ -5,6 +5,9 @@ import { Shell, Post, Empty } from "@/components/social";
 import { api, type PostT } from "@/lib/api";
 
 export const Route = createFileRoute("/search")({
+  validateSearch: (search: Record<string, unknown>): { q?: string | undefined } => ({
+    q: typeof search["q"] === "string" ? search["q"] : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Search Wishes & Bills — HelpMePay" },
@@ -28,9 +31,16 @@ const POPULAR_TAGS = [
 ];
 
 function SearchPage() {
-  const [q, setQ] = useState("");
+  const searchParams = Route.useSearch();
+  const [q, setQ] = useState(searchParams.q || "");
   const [results, setResults] = useState<PostT[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.q && searchParams.q !== q) {
+      setQ(searchParams.q);
+    }
+  }, [searchParams.q]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
